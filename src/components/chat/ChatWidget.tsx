@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useShopUi } from "@/components/sim/ShopUiContext";
 import { formatNumber, priceText } from "@/components/sim/data";
 import { ApiError } from "@/lib/api/client";
@@ -24,7 +24,6 @@ const MAX_LENGTH = 500;
 export function ChatWidget() {
   const { sendCommand } = useShopUi();
   const router = useRouter();
-  const pathname = usePathname();
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([{ id: 0, from: "bot", ...GREETING }]);
@@ -88,8 +87,10 @@ export function ChatWidget() {
 
   const applyCommand = (command: NonNullable<BotAction["command"]>) => {
     sendCommand(command);
-    if (pathname !== "/") router.push("/#chon-so");
-    else document.getElementById("chon-so")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Pages with the number list (home, /sim-*) handle it in place.
+    const list = document.getElementById("chon-so");
+    if (list) list.scrollIntoView({ behavior: "smooth", block: "start" });
+    else router.push("/#chon-so");
     // Let the visitor see the list on small screens.
     if (window.matchMedia("(max-width: 640px)").matches) setOpen(false);
   };

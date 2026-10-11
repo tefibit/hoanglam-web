@@ -7,27 +7,13 @@ import { OrdersModal } from "@/components/sim/OrdersModal";
 import { Brand } from "./SiteHeader";
 
 export function SiteFooter() {
-  const { openModal, closeModal, orders, sendCommand } = useShopUi();
+  const { openModal, orders, sendCommand } = useShopUi();
 
   const policy = (key: keyof typeof POLICIES) =>
     openModal(
       <>
         <h2>{POLICIES[key][0]}</h2>
         <p>{POLICIES[key][1]}</p>
-      </>,
-    );
-
-  const contactForm = () =>
-    openModal(
-      <>
-        <h2>Liên hệ tư vấn</h2>
-        <p>
-          Chọn số và tạo đơn demo để xem quy trình tư vấn. Hotline và địa chỉ chi tiết sẽ được cập
-          nhật khi có thông tin chính thức.
-        </p>
-        <Link href="/#chon-so" className="primary" onClick={closeModal} style={{ display: "inline-block", marginTop: 16, textDecoration: "none" }}>
-          Chọn số ngay
-        </Link>
       </>,
     );
 
@@ -51,9 +37,9 @@ export function SiteFooter() {
           <br />
           {STORES.slice(4).join(" · ")}
         </p>
-        <button type="button" className="secondary" onClick={contactForm}>
-          Yêu cầu tư vấn
-        </button>
+        <Link href="/lien-he" className="secondary" style={{ display: "inline-block", color: "var(--ink)" }}>
+          Địa chỉ các chi nhánh
+        </Link>
       </div>
       <div>
         <h3>HỖ TRỢ KHÁCH HÀNG</h3>
@@ -66,7 +52,8 @@ export function SiteFooter() {
         <h3>TIỆN ÍCH</h3>
         <Link href="/#chon-so" onClick={() => sendCommand({ kind: "favorites" })}>Số yêu thích</Link>
         <a href="#" onClick={(e) => { e.preventDefault(); openModal(<OrdersModal orders={orders} />); }}>Đơn demo của bạn</a>
-        <Link href="/#goi-cuoc">Gói cước Viettel</Link>
+        <Link href="/goi-cuoc">Gói cước 5G</Link>
+        <Link href="/tin-tuc">Tin tức</Link>
         <p>© Hoàng Lâm · Số đẹp Viettel</p>
       </div>
     </footer>

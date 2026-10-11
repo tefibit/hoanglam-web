@@ -1,7 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useShopUi, type ShopMode } from "@/components/sim/ShopUiContext";
+
+const NAV = [
+  { href: "/", label: "Trang chủ" },
+  { href: "/sim-so-dep", label: "Chọn số đẹp" },
+  { href: "/sim-phong-thuy", label: "SIM phong thủy" },
+  { href: "/sim-nam-sinh", label: "SIM năm sinh" },
+  { href: "/goi-cuoc", label: "Gói cước 5G" },
+  { href: "/tin-tuc", label: "Tin tức" },
+  { href: "/lien-he", label: "Liên hệ" },
+];
 
 const MODES: { value: ShopMode; label: string }[] = [
   { value: "customer", label: "Khách chọn số" },
@@ -20,6 +31,7 @@ export function Brand() {
 
 export function SiteHeader() {
   const { mode, setMode, sendCommand } = useShopUi();
+  const pathname = usePathname();
 
   return (
     <header>
@@ -27,19 +39,20 @@ export function SiteHeader() {
         <Brand />
       </Link>
       <nav className="links" aria-label="Menu chính">
-        <Link href="/" onClick={() => sendCommand({ kind: "reset" })}>
-          Trang chủ
-        </Link>
-        <Link href="/#chon-so">Chọn số đẹp</Link>
-        <Link href="/#chon-so" onClick={() => sendCommand({ kind: "focusElement" })}>
-          SIM phong thủy
-        </Link>
-        <Link href="/#chon-so" onClick={() => sendCommand({ kind: "type", value: "NAM_SINH" })}>
-          SIM năm sinh
-        </Link>
-        <Link href="/#goi-cuoc">Gói cước 5G</Link>
-        <Link href="/#tin-tuc">Tin tức</Link>
-        <Link href="#lien-he">Liên hệ</Link>
+        {NAV.map((item) => {
+          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={active ? "active" : undefined}
+              aria-current={active ? "page" : undefined}
+              onClick={item.href === "/" ? () => sendCommand({ kind: "reset" }) : undefined}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
       <nav className="modes" aria-label="Chế độ hiển thị">
         {MODES.map((item) => (

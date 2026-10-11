@@ -61,13 +61,29 @@ function useDebounced<T>(value: T, delay = DEBOUNCE_MS) {
   return debounced;
 }
 
-export function SimShop() {
+interface SimShopProps {
+  // Loại sim the page starts on (and "Xóa bộ lọc" returns to), e.g. NAM_SINH.
+  initialType?: string;
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  // "Cẩm nang chọn SIM" cards under the packages (home page only).
+  showGuides?: boolean;
+}
+
+export function SimShop({
+  initialType = "all",
+  eyebrow = "CHỌN SỐ THEO CÁCH CỦA BẠN",
+  title = "Một số đẹp. Một dấu ấn riêng.",
+  subtitle = "Tìm đuôi số yêu thích, chọn mức giá phù hợp.",
+  showGuides = true,
+}: SimShopProps = {}) {
   const { mode, favorites, toggleFavorite, favoriteOnly, setFavoriteOnly, orders, addOrder, command, notify } =
     useShopUi();
 
   const [query, setQuery] = useState("");
   // Loại sim / mệnh are sim_types codes ("all" = no filter).
-  const [type, setType] = useState("all");
+  const [type, setType] = useState(initialType);
   const [budget, setBudget] = useState("all");
   const [prefix, setPrefix] = useState("all");
   const [element, setElement] = useState<string>("all");
@@ -151,7 +167,7 @@ export function SimShop() {
   const references = favoriteOnly ? [] : (similar.data ?? []);
 
   const hasFilters =
-    type !== "all" ||
+    type !== initialType ||
     element !== "all" ||
     budget !== "all" ||
     prefix !== "all" ||
@@ -159,10 +175,11 @@ export function SimShop() {
     Boolean(pattern) ||
     favoriteOnly;
   const featured = useFeaturedSims();
-  const featuredSims = hasFilters ? [] : (featured.data ?? []);
+  // "Sim đề xuất" are general picks: only on the unfiltered all-numbers view.
+  const featuredSims = hasFilters || initialType !== "all" ? [] : (featured.data ?? []);
 
   const resetFilters = useCallback(() => {
-    setType("all");
+    setType(initialType);
     setElement("all");
     setBirth(null);
     setFavoriteOnly(false);
@@ -171,7 +188,7 @@ export function SimShop() {
     setBudget("all");
     setPrefix("all");
     setSort("suggested");
-  }, [setFavoriteOnly]);
+  }, [setFavoriteOnly, initialType]);
 
   const newCustomer = useCallback(
     (silent = false) => {
@@ -339,9 +356,9 @@ export function SimShop() {
     <div className={mode === "customer" ? undefined : mode}>
       <div className="top">
         <div>
-          <div className="eyebrow">CHỌN SỐ THEO CÁCH CỦA BẠN</div>
-          <h1>Một số đẹp. Một dấu ấn riêng.</h1>
-          <p>Tìm đuôi số yêu thích, chọn mức giá phù hợp.</p>
+          <div className="eyebrow">{eyebrow}</div>
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
         </div>
         <button type="button" className="reset" onClick={() => newCustomer()}>
           Bắt đầu lượt khách mới
@@ -587,6 +604,7 @@ export function SimShop() {
         </p>
       </section>
 
+      {showGuides && (
       <section id="tin-tuc" className="info-section" aria-labelledby="tin-tuc-title">
         <div className="eyebrow">CẨM NANG CHỌN SIM</div>
         <h2 id="tin-tuc-title">Chọn số dễ nhớ, dùng lâu dài</h2>
@@ -602,6 +620,7 @@ export function SimShop() {
           ))}
         </div>
       </section>
+      )}
 
       <div className="footerbar">
         <div>

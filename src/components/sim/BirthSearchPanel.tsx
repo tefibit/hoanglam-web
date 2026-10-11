@@ -46,7 +46,16 @@ export function BirthSearchPanel({ mode, value, onChange, menh, menhLoading, men
       <form onSubmit={submit}>
         <label className="birth-field">
           Ngày sinh
-          <input type="date" required min="1900-01-01" max={today()} value={date} onChange={(e) => setDate(e.target.value)} />
+          {/* "No future date" is set on focus: reading today's date while
+              rendering breaks Next's prerender of /sim-phong-thuy, /sim-nam-sinh. */}
+          <input
+            type="date"
+            required
+            min="1900-01-01"
+            value={date}
+            onFocus={(e) => (e.currentTarget.max = today())}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </label>
         <fieldset className="birth-field">
           <legend>Giới tính</legend>
