@@ -1,46 +1,6 @@
-// Dữ liệu minh họa của trang chủ (theo bản mẫu sodepviettel.html) — số,
-// mệnh, giá và gói cước CHƯA phải kho số đang bán. Sau này thay bằng API.
-
-export type SimElement = "Kim" | "Mộc" | "Thuỷ" | "Hoả" | "Thổ";
-
-export interface SimEntry {
-  id: number;
-  number: string;
-  price: number;
-  type: string;
-  element: SimElement;
-}
-
-const ELEMENTS_CYCLE: SimElement[] = ["Hoả", "Kim", "Mộc", "Thuỷ", "Thổ"];
-
-export const SIM_ENTRIES: SimEntry[] = (
-  [
-    ["0981236868", 1250000, "Lộc phát"],
-    ["0868889999", 8900000, "Tứ quý"],
-    ["0971030303", 650000, "Số lặp"],
-    ["0981030303", 950000, "Số lặp"],
-    ["0962468888", 6500000, "Tứ quý"],
-    ["0335671985", 350000, "Năm sinh"],
-    ["0382466789", 1750000, "Số tiến"],
-    ["0974566666", 5200000, "Tứ quý"],
-    ["0347891990", 450000, "Năm sinh"],
-    ["0392348888", 2800000, "Tứ quý"],
-    ["0985677979", 2200000, "Thần tài"],
-    ["0862345678", 3800000, "Số tiến"],
-    ["0356786868", 550000, "Lộc phát"],
-    ["0967893333", 3200000, "Tứ quý"],
-    ["0381231982", 300000, "Năm sinh"],
-    ["0975678989", 1150000, "Số cặp"],
-    ["0983459999", 9900000, "Tứ quý"],
-    ["0334567777", 1950000, "Tứ quý"],
-  ] as const
-).map(([number, price, type], i) => ({
-  id: i,
-  number,
-  price,
-  type,
-  element: ELEMENTS_CYCLE[i % 5],
-}));
+// Nội dung tĩnh của trang chủ. Danh sách số, loại sim và giá lấy từ
+// hoanglam-api (/web/sims, /web/sim-types — xem lib/api/sims.ts); gói cước,
+// cửa hàng và đơn đặt mua vẫn là dữ liệu minh họa.
 
 export interface Plan {
   id: string;
@@ -63,26 +23,29 @@ export const PLANS: Plan[] = [
   { id: "12T5G480B", name: "12T5G480B · 5.760.000 đ / 360 ngày", price: 5760000, term: "360 ngày", tag: "GÓI 360 NGÀY", info: "20GB/ngày · 3.600 phút ngoại mạng. Tiện ích: TV360." },
 ];
 
-export const SIM_TYPES = [
-  { name: "Tất cả", icon: "▦", sub: "Tổng hợp số đẹp" },
-  { name: "Lộc phát", icon: "💰", sub: "Phát tài phát lộc" },
-  { name: "Thần tài", icon: "👑", sub: "Chiêu tài đón lộc" },
-  { name: "Tứ quý", icon: "💎", sub: "Dấu ấn khác biệt" },
-  { name: "Số tiến", icon: "📶", sub: "Phát triển thăng tiến" },
-  { name: "Số lặp", icon: "🔁", sub: "Dễ nhớ, ấn tượng" },
-  { name: "Số cặp", icon: "♥", sub: "Song hỷ, may mắn" },
-  { name: "Năm sinh", icon: "📅", sub: "Kỷ niệm ý nghĩa" },
-];
-
-export const ELEMENT_ICONS: Record<SimElement, string> = {
-  Hoả: "🔥",
-  Kim: "⚙️",
-  Mộc: "🌿",
-  Thuỷ: "💧",
-  Thổ: "⛰️",
+// Icons for the loại sim quick filters (by sim_types.code).
+export const SIM_TYPE_ICONS: Record<string, string> = {
+  NGU_QUY: "💎",
+  TU_QUY: "💎",
+  TAM_HOA: "🎯",
+  LOC_PHAT: "💰",
+  THAN_TAI: "👑",
+  ONG_DIA: "🏮",
+  SO_TIEN: "📶",
+  SO_LAP: "🔁",
+  SO_GANH: "♥",
+  NAM_SINH: "📅",
+  PHONG_THUY: "☯️",
 };
 
-export const ELEMENT_FILTERS = ["all", "Kim", "Mộc", "Thuỷ", "Hoả", "Thổ"] as const;
+// "Chọn theo mệnh" — each maps to a loại sim assigned in the admin.
+export const ELEMENTS = [
+  { label: "Kim", code: "MENH_KIM", icon: "⚙️" },
+  { label: "Mộc", code: "MENH_MOC", icon: "🌿" },
+  { label: "Thủy", code: "MENH_THUY", icon: "💧" },
+  { label: "Hỏa", code: "MENH_HOA", icon: "🔥" },
+  { label: "Thổ", code: "MENH_THO", icon: "⛰️" },
+] as const;
 
 export const BUDGETS = [
   { value: "all", label: "Tất cả mức giá" },
@@ -102,7 +65,7 @@ export const ARTICLES = [
     title: "Chọn số theo cách của bạn",
     summary: "Tìm đuôi số quen thuộc, số lặp, lộc phát hoặc năm sinh; so sánh các số trong cùng ngân sách.",
     detailTitle: "Cách chọn số dễ nhớ",
-    detail: "Bắt đầu với ngân sách, sau đó tìm một dãy số quen thuộc. Dùng bộ lọc đầu số và nhóm số, lưu số yêu thích hoặc chọn tối đa 3 số để so sánh. Mệnh của số trong demo là dữ liệu minh họa.",
+    detail: "Bắt đầu với ngân sách, sau đó tìm một dãy số quen thuộc. Dùng bộ lọc đầu số và nhóm số, lưu số yêu thích hoặc chọn tối đa 3 số để so sánh.",
   },
   {
     title: "SIM vật lý hay eSIM?",
@@ -122,8 +85,10 @@ export const POLICIES: Record<"buy" | "delivery" | "privacy" | "terms", [string,
   buy: ["Hướng dẫn đặt mua", "Tìm số → chọn mua → chọn gói tùy nhu cầu → nhập thông tin → tạo đơn demo. Nhân viên cần xác nhận tồn kho và điều kiện đăng ký trước khi bán thật."],
   delivery: ["Giao nhận và thanh toán", "Chọn nhận tại cửa hàng hoặc giao tận nơi trong biểu mẫu. Demo chưa thu tiền; phí giao hàng và phương thức thanh toán sẽ được xác nhận trước khi bán thật."],
   privacy: ["Chính sách bảo mật bản demo", "Thông tin đơn demo và số yêu thích được lưu trong trình duyệt trên thiết bị của bạn. Demo không gửi dữ liệu tới cửa hàng. Không nhập giấy tờ định danh hoặc thông tin thanh toán."],
-  terms: ["Điều kiện sử dụng bản demo", "Số điện thoại, mệnh, giá và gói cước phục vụ thử giao diện. Chưa thể giữ số, đăng ký thuê bao hoặc thanh toán thực tế."],
+  terms: ["Điều kiện sử dụng bản demo", "Số điện thoại và giá SIM lấy từ kho cửa hàng; gói cước phục vụ thử giao diện. Chưa thể giữ số, đăng ký thuê bao hoặc thanh toán thực tế."],
 };
 
 export const money = (n: number) => n.toLocaleString("vi-VN") + " đ";
 export const formatNumber = (n: string) => `${n.slice(0, 3)}.${n.slice(3, 6)}.${n.slice(6)}`;
+// Price may be missing for a number the shop hasn't priced yet.
+export const priceText = (n: number | null) => (n == null ? "Liên hệ" : money(n));

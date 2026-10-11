@@ -34,7 +34,7 @@ export function SiteHeader() {
         <Link href="/#chon-so" onClick={() => sendCommand({ kind: "focusElement" })}>
           SIM phong thủy
         </Link>
-        <Link href="/#chon-so" onClick={() => sendCommand({ kind: "type", value: "Năm sinh" })}>
+        <Link href="/#chon-so" onClick={() => sendCommand({ kind: "type", value: "NAM_SINH" })}>
           SIM năm sinh
         </Link>
         <Link href="/#goi-cuoc">Gói cước 5G</Link>

@@ -20,7 +20,8 @@ export default function HomePage() {
         style={{ width: "100%", height: "auto" }}
       />
       <div className="demo">
-        Bản mẫu giao diện · Số, mệnh, giá và gói cước là dữ liệu minh họa, chưa phải kho số đang bán.
+        Số và giá SIM cập nhật từ kho cửa hàng · Gói cước và đặt mua trực tuyến đang thử nghiệm, nhân
+        viên sẽ liên hệ xác nhận.
       </div>
       <main>
         <SimShop />

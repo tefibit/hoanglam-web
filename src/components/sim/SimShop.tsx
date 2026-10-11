@@ -4,36 +4,59 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import {
   ARTICLES,
   BUDGETS,
-  ELEMENT_FILTERS,
-  ELEMENT_ICONS,
+  ELEMENTS,
   PLANS,
   PREFIXES,
-  SIM_ENTRIES,
-  SIM_TYPES,
+  SIM_TYPE_ICONS,
   STORES,
   formatNumber,
   money,
+  priceText,
   type Plan,
-  type SimEntry,
 } from "./data";
 import { useShopUi, type DemoOrder } from "./ShopUiContext";
 import { OrdersModal } from "./OrdersModal";
+import {
+  useFeaturedSims,
+  useSimSearch,
+  useSimStatus,
+  useSimilarSims,
+  useWebSimTypes,
+  type SimFilters,
+  type SimSort,
+  type WebSim,
+} from "@/lib/api/sims";
 
 type Modal =
-  | { kind: "details"; id: number }
+  | { kind: "details"; sim: WebSim }
   | { kind: "compare" }
-  | { kind: "order"; id: number }
+  | { kind: "order"; sim: WebSim }
   | { kind: "orderDone"; order: DemoOrder }
   | { kind: "article"; index: number }
   | { kind: "orders" };
 
 const KIOSK_IDLE_MS = 180_000;
+const DEBOUNCE_MS = 350;
 
-// Search accepts digits plus "x"/"*" wildcards, e.g. "098x68".
-function matchesPattern(number: string, q: string) {
-  if (!q) return true;
-  if (/[x*]/.test(q)) return new RegExp("^" + q.replace(/[x*]+/g, "[0-9]*") + "$").test(number);
-  return number.includes(q);
+const isElementCode = (code: string) => code.startsWith("MENH_");
+
+// The badge on a card: "Đề xuất", else its first (non-mệnh) loại sim.
+function cardTag(sim: WebSim) {
+  if (sim.featured) return "★ Đề xuất";
+  return sim.simTypes.find((type) => !isElementCode(type.code))?.name ?? "Sim số";
+}
+
+function elementOf(sim: WebSim) {
+  return ELEMENTS.find((element) => sim.simTypes.some((type) => type.code === element.code));
+}
+
+function useDebounced<T>(value: T, delay = DEBOUNCE_MS) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
 }
 
 export function SimShop() {
@@ -41,15 +64,16 @@ export function SimShop() {
     useShopUi();
 
   const [query, setQuery] = useState("");
-  const [type, setType] = useState("Tất cả");
+  // Loại sim / mệnh are sim_types codes ("all" = no filter).
+  const [type, setType] = useState("all");
   const [budget, setBudget] = useState("all");
   const [prefix, setPrefix] = useState("all");
   const [element, setElement] = useState<string>("all");
   const [year, setYear] = useState("");
-  const [sort, setSort] = useState("suggest");
-  const [selected, setSelected] = useState<number[]>([]);
+  const [sort, setSort] = useState<SimSort>("suggested");
+  const [selected, setSelected] = useState<WebSim[]>([]);
   const [chosenPlans, setChosenPlans] = useState<Record<number, string>>({});
-  const [packageTarget, setPackageTarget] = useState<number | null>(null);
+  const [packageTarget, setPackageTarget] = useState<WebSim | null>(null);
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal | null>(null);
 
@@ -60,64 +84,68 @@ export function SimShop() {
   const elementFilterRef = useRef<HTMLDivElement>(null);
 
   const planFor = useCallback(
-    (entry: SimEntry): Plan => PLANS.find((plan) => plan.id === chosenPlans[entry.id]) ?? PLANS[0],
+    (sim: WebSim): Plan => PLANS.find((plan) => plan.id === chosenPlans[sim.id]) ?? PLANS[0],
     [chosenPlans],
   );
-  const totalFor = (entry: SimEntry) => entry.price + planFor(entry).price;
+  const totalFor = (sim: WebSim) => (sim.price ?? 0) + planFor(sim).price;
 
   const pattern = query.toLowerCase().replace(/[^0-9x*]/g, "");
+  const debouncedPattern = useDebounced(pattern);
+  const debouncedYear = useDebounced(year.replace(/\D/g, ""));
 
-  const eligible = useCallback(
-    (entry: SimEntry) => {
-      const [min, max] = budget.split("-").map(Number);
-      return (
-        (!year || entry.number.includes(year)) &&
-        (element === "all" || entry.element === element) &&
-        (!favoriteOnly || favorites.includes(entry.id)) &&
-        (type === "Tất cả" || entry.type === type) &&
-        (prefix === "all" || entry.number.startsWith(prefix)) &&
-        (budget === "all" || (entry.price >= min && entry.price < max))
-      );
-    },
-    [budget, year, element, favoriteOnly, favorites, type, prefix],
+  const { data: simTypes } = useWebSimTypes();
+  const quickTypes = (simTypes ?? []).filter((item) => !isElementCode(item.code));
+  const elementTypes = ELEMENTS.filter((item) => simTypes?.some((simType) => simType.code === item.code));
+  const slugOf = useCallback(
+    (code: string) => simTypes?.find((simType) => simType.code === code)?.slug,
+    [simTypes],
   );
 
-  const rows = useMemo(() => {
-    const list = SIM_ENTRIES.filter((entry) => eligible(entry) && matchesPattern(entry.number, pattern));
-    if (sort !== "suggest") list.sort((a, b) => (sort === "asc" ? a.price - b.price : b.price - a.price));
-    return list;
-  }, [eligible, pattern, sort]);
+  const filters = useMemo<SimFilters>(() => {
+    const [minPrice, maxPrice] = budget === "all" ? [] : budget.split("-").map(Number);
+    return {
+      types: [type, element]
+        .filter((code) => code !== "all")
+        .map((code) => slugOf(code))
+        .filter((slug): slug is string => Boolean(slug)),
+      search: debouncedPattern,
+      contains: debouncedYear,
+      prefix: prefix === "all" ? "" : prefix,
+      minPrice,
+      maxPrice,
+      ids: favoriteOnly ? favorites : undefined,
+    };
+  }, [budget, type, element, slugOf, debouncedPattern, debouncedYear, prefix, favoriteOnly, favorites]);
 
-  // Numbers close to the typed pattern (same prefix / suffix) to compare too.
-  const references = useMemo(() => {
-    if (!/\d/.test(pattern)) return [];
-    const wild = /[x*]/.test(pattern);
-    const parts = pattern.split(/[x*]+/);
-    const head = wild ? parts[0] : pattern.length >= 3 && pattern.startsWith("0") ? pattern.slice(0, 3) : "";
-    const tail = wild ? parts[parts.length - 1] : head ? pattern.slice(3) : pattern;
-    return SIM_ENTRIES.filter((entry) => eligible(entry) && !matchesPattern(entry.number, pattern))
-      .map((entry) => ({
-        entry,
-        score:
-          (head && entry.number.startsWith(head) ? 4 : 0) +
-          (tail && entry.number.endsWith(tail) ? 3 : 0) +
-          (tail.length >= 2 && entry.number.includes(tail) ? 1 : 0),
-      }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score || a.entry.price - b.entry.price)
-      .slice(0, 6)
-      .map((item) => item.entry);
-  }, [eligible, pattern]);
+  // "Yêu thích" with nothing saved → nothing to ask the API for.
+  const noFavorites = favoriteOnly && favorites.length === 0;
+  const simSearch = useSimSearch(filters, sort, !noFavorites);
+  const rows = noFavorites ? [] : (simSearch.data?.pages.flatMap((page) => page.data) ?? []);
+  const total = noFavorites ? 0 : (simSearch.data?.pages[0]?.pagination.total ?? 0);
+
+  const similar = useSimilarSims(filters);
+  const references = favoriteOnly ? [] : (similar.data ?? []);
+
+  const hasFilters =
+    type !== "all" ||
+    element !== "all" ||
+    budget !== "all" ||
+    prefix !== "all" ||
+    Boolean(year) ||
+    Boolean(pattern) ||
+    favoriteOnly;
+  const featured = useFeaturedSims();
+  const featuredSims = hasFilters ? [] : (featured.data ?? []);
 
   const resetFilters = useCallback(() => {
-    setType("Tất cả");
+    setType("all");
     setElement("all");
     setFavoriteOnly(false);
     setYear("");
     setQuery("");
     setBudget("all");
     setPrefix("all");
-    setSort("suggest");
+    setSort("suggested");
   }, [setFavoriteOnly]);
 
   const newCustomer = useCallback(
@@ -169,24 +197,24 @@ export function SimShop() {
     if (!modal && dialog.open) dialog.close();
   }, [modal]);
 
-  const toggleSelect = (id: number, checked: boolean) => {
+  const toggleSelect = (sim: WebSim, checked: boolean) => {
     if (checked && selected.length >= 3) {
       notify("Bạn có thể so sánh tối đa 3 số.");
       return;
     }
-    setSelected((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+    setSelected((prev) => (checked ? [...prev, sim] : prev.filter((item) => item.id !== sim.id)));
   };
 
-  const openDetails = (id: number) => {
+  const openDetails = (sim: WebSim) => {
     if (pendingPlan) {
-      setChosenPlans((prev) => ({ ...prev, [id]: pendingPlan }));
+      setChosenPlans((prev) => ({ ...prev, [sim.id]: pendingPlan }));
       setPendingPlan(null);
     }
-    setModal({ kind: "details", id });
+    setModal({ kind: "details", sim });
   };
 
-  const choosePackageFor = (id: number) => {
-    setPackageTarget(id);
+  const choosePackageFor = (sim: WebSim) => {
+    setPackageTarget(sim);
     setModal(null);
     packagesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -198,13 +226,13 @@ export function SimShop() {
       gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    const id = packageTarget;
-    setChosenPlans((prev) => ({ ...prev, [id]: planId }));
+    const sim = packageTarget;
+    setChosenPlans((prev) => ({ ...prev, [sim.id]: planId }));
     setPackageTarget(null);
-    setModal({ kind: "details", id });
+    setModal({ kind: "details", sim });
   };
 
-  const submitOrder = (event: FormEvent<HTMLFormElement>, entry: SimEntry) => {
+  const submitOrder = (event: FormEvent<HTMLFormElement>, entry: WebSim) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>;
     const order: DemoOrder = {
@@ -215,7 +243,7 @@ export function SimShop() {
       delivery: data.delivery,
       store: data.store,
       note: data.note ?? "",
-      number: entry.number,
+      number: entry.phoneNumber,
       price: totalFor(entry),
       plan: planFor(entry).id,
       date: new Date().toLocaleString("vi-VN"),
@@ -224,18 +252,19 @@ export function SimShop() {
     setModal({ kind: "orderDone", order });
   };
 
-  const card = (entry: SimEntry) => {
-    const formatted = formatNumber(entry.number);
-    const isFavorite = favorites.includes(entry.id);
+  const card = (sim: WebSim) => {
+    const formatted = formatNumber(sim.phoneNumber);
+    const isFavorite = favorites.includes(sim.id);
+    const element = elementOf(sim);
     return (
-      <article key={entry.id} className="card">
-        <span className="tag">{entry.type.toUpperCase()}</span>
+      <article key={sim.id} className="card">
+        <span className="tag">{cardTag(sim).toUpperCase()}</span>
         <button
           type="button"
           className={`heart ${isFavorite ? "on" : ""}`}
           aria-label="Lưu số yêu thích"
           aria-pressed={isFavorite}
-          onClick={() => toggleFavorite(entry.id)}
+          onClick={() => toggleFavorite(sim.id)}
         >
           {isFavorite ? "♥" : "♡"}
         </button>
@@ -244,24 +273,30 @@ export function SimShop() {
           <span>{formatted.slice(8)}</span>
         </div>
         <div className="element">
-          {ELEMENT_ICONS[entry.element]} Mệnh: <b>{entry.element}</b>
+          {element ? (
+            <>
+              {element.icon} Mệnh: <b>{element.label}</b>
+            </>
+          ) : (
+            <>📍 {sim.store.name}</>
+          )}
         </div>
-        <div className="price">{money(entry.price)}</div>
+        <div className="price">{priceText(sim.price)}</div>
         {mode === "staff" && (
           <div className="staffonly">
-            Tổng ban đầu: <b>{money(totalFor(entry))}</b>
+            Tổng ban đầu: <b>{money(totalFor(sim))}</b>
           </div>
         )}
         <div className="card-bottom">
           <label>
             <input
               type="checkbox"
-              checked={selected.includes(entry.id)}
-              onChange={(e) => toggleSelect(entry.id, e.target.checked)}
+              checked={selected.some((item) => item.id === sim.id)}
+              onChange={(e) => toggleSelect(sim, e.target.checked)}
             />{" "}
             So sánh
           </label>
-          <button type="button" className="detail" onClick={() => openDetails(entry.id)}>
+          <button type="button" className="detail" onClick={() => openDetails(sim)}>
             {mode === "staff" ? "Xem tư vấn" : "Chọn mua"}
           </button>
         </div>
@@ -303,25 +338,36 @@ export function SimShop() {
       </form>
 
       <div className="quick" role="group" aria-label="Loại số">
-        {SIM_TYPES.map((item) => (
+        <button
+          type="button"
+          className={type === "all" ? "active" : undefined}
+          aria-pressed={type === "all"}
+          onClick={() => setType("all")}
+        >
+          <span aria-hidden>▦</span>
+          Tất cả
+          <small>Tổng hợp số đẹp</small>
+        </button>
+        {quickTypes.map((item) => (
           <button
-            key={item.name}
+            key={item.code}
             type="button"
-            className={item.name === type ? "active" : undefined}
-            aria-pressed={item.name === type}
-            onClick={() => setType(item.name)}
+            className={item.code === type ? "active" : undefined}
+            aria-pressed={item.code === type}
+            title={item.description ?? undefined}
+            onClick={() => setType(item.code)}
           >
-            <span aria-hidden>{item.icon}</span>
-            {item.name}
-            <small>{item.sub}</small>
+            <span aria-hidden>{SIM_TYPE_ICONS[item.code] ?? "✦"}</span>
+            {item.name.replace(/^Sim\s+/i, "")}
+            <small>{item.count.toLocaleString("vi-VN")} số</small>
           </button>
         ))}
       </div>
 
       {mode === "staff" && (
         <div className="staff-banner">
-          Chế độ tư vấn minh họa · Xem tổng chi phí, điều kiện gói và so sánh số. Chưa có đăng nhập
-          hoặc giữ số trên kho thật.
+          Chế độ tư vấn · Xem tổng chi phí, điều kiện gói và so sánh số. Chưa có đăng nhập nhân viên
+          hoặc giữ số.
         </div>
       )}
       {pending && (
@@ -364,19 +410,23 @@ export function SimShop() {
             <span className="filter" style={{ display: "block", fontSize: 14, fontWeight: "bold", margin: "20px 0 7px" }}>
               Chọn theo mệnh
             </span>
-            <div className="element-buttons">
-              {ELEMENT_FILTERS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={element === item ? "active" : undefined}
-                  aria-pressed={element === item}
-                  onClick={() => setElement(item)}
-                >
-                  {item === "all" ? "Tất cả" : item}
-                </button>
-              ))}
-            </div>
+            {elementTypes.length > 0 ? (
+              <div className="element-buttons">
+                {[{ code: "all", label: "Tất cả" }, ...elementTypes].map((item) => (
+                  <button
+                    key={item.code}
+                    type="button"
+                    className={element === item.code ? "active" : undefined}
+                    aria-pressed={element === item.code}
+                    onClick={() => setElement(item.code)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="note">Đang cập nhật sim theo mệnh.</p>
+            )}
           </div>
           <div>
             <label className="filter" htmlFor="year">
@@ -399,36 +449,69 @@ export function SimShop() {
         </aside>
 
         <section aria-label="Danh sách số">
+          {featuredSims.length > 0 && (
+            <section className="featured-section" aria-label="Sim đề xuất">
+              <h2>Sim đề xuất</h2>
+              <p>Những số cửa hàng chọn riêng cho bạn.</p>
+              <div className="grid">{featuredSims.map(card)}</div>
+            </section>
+          )}
           <div className="results-head">
             <div>
-              <strong>{rows.length}</strong> <span style={{ color: "var(--muted)" }}>số phù hợp</span>
+              <strong>{total.toLocaleString("vi-VN")}</strong>{" "}
+              <span style={{ color: "var(--muted)" }}>số phù hợp</span>
             </div>
-            <select aria-label="Sắp xếp" value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="suggest">Gợi ý cho bạn</option>
-              <option value="asc">Giá thấp đến cao</option>
-              <option value="desc">Giá cao đến thấp</option>
+            <select aria-label="Sắp xếp" value={sort} onChange={(e) => setSort(e.target.value as SimSort)}>
+              <option value="suggested">Gợi ý cho bạn</option>
+              <option value="price_asc">Giá thấp đến cao</option>
+              <option value="price_desc">Giá cao đến thấp</option>
             </select>
           </div>
-          <div className="grid" ref={gridRef}>
-            {rows.length ? (
+          <div className={`grid ${simSearch.isPlaceholderData ? "is-stale" : ""}`} ref={gridRef} aria-busy={simSearch.isFetching}>
+            {simSearch.isPending && !noFavorites ? (
+              <div className="empty">
+                <p>Đang tải danh sách số…</p>
+              </div>
+            ) : simSearch.isError ? (
+              <div className="empty">
+                <h2>Không tải được danh sách số</h2>
+                <p>{simSearch.error.message}</p>
+                <button type="button" className="secondary" onClick={() => simSearch.refetch()}>
+                  Thử lại
+                </button>
+              </div>
+            ) : rows.length ? (
               rows.map(card)
             ) : (
               <div className="empty">
-                <h2>Chưa có số phù hợp</h2>
-                <p>Thử đuôi số ngắn hơn hoặc mở rộng khoảng giá.</p>
+                <h2>{noFavorites ? "Chưa có số yêu thích" : "Chưa có số phù hợp"}</h2>
+                <p>
+                  {noFavorites
+                    ? "Bấm ♡ trên một số để lưu lại xem sau."
+                    : "Thử đuôi số ngắn hơn hoặc mở rộng khoảng giá."}
+                </p>
                 <button type="button" className="secondary" onClick={resetFilters}>
                   Xóa bộ lọc
                 </button>
               </div>
             )}
           </div>
+          {simSearch.hasNextPage && (
+            <div className="load-more">
+              <button
+                type="button"
+                className="secondary"
+                disabled={simSearch.isFetchingNextPage}
+                onClick={() => simSearch.fetchNextPage()}
+              >
+                {simSearch.isFetchingNextPage ? "Đang tải…" : `Xem thêm số (còn ${(total - rows.length).toLocaleString("vi-VN")})`}
+              </button>
+            </div>
+          )}
           {references.length > 0 && (
             <section className="reference-section" aria-label="Số tham khảo thêm">
               <h2>Số tham khảo thêm</h2>
-              <p>
-                Các số gần với mẫu {query.trim()} để bạn so sánh thêm. Mệnh và giá là dữ liệu minh
-                họa.
-              </p>
+              <p>Các số có đầu số hoặc đuôi số gần với mẫu {query.trim()} để bạn so sánh thêm.</p>
               <div className="grid">{references.map(card)}</div>
             </section>
           )}
@@ -452,7 +535,7 @@ export function SimShop() {
               <button type="button" className="primary" onClick={() => pickPackage(plan.id)}>
                 {packageTarget === null
                   ? "Chọn số với gói này"
-                  : "Chọn cho " + formatNumber(SIM_ENTRIES[packageTarget].number)}
+                  : "Chọn cho " + formatNumber(packageTarget.phoneNumber)}
               </button>
             </article>
           ))}
@@ -485,7 +568,7 @@ export function SimShop() {
           <strong>{selected.length ? `Đã chọn ${selected.length}/3 số` : "Chưa chọn số để so sánh"}</strong>
           <small>
             {selected.length
-              ? selected.map((id) => formatNumber(SIM_ENTRIES[id].number)).join(" · ")
+              ? selected.map((sim) => formatNumber(sim.phoneNumber)).join(" · ")
               : "Chọn tối đa 3 số để xem cùng lúc"}
           </small>
         </div>
@@ -523,93 +606,40 @@ export function SimShop() {
         <button type="button" className="close" aria-label="Đóng" onClick={() => setModal(null)}>
           ×
         </button>
-        {modal?.kind === "details" && (() => {
-          const entry = SIM_ENTRIES[modal.id];
-          const plan = planFor(entry);
-          return (
-            <>
-              <div className="eyebrow">{entry.type} · Dữ liệu minh họa</div>
-              <div className="number">{formatNumber(entry.number)}</div>
-              <div className="element">
-                {ELEMENT_ICONS[entry.element]} Mệnh: <b>{entry.element}</b>
-              </div>
-              <p className="note">
-                Mệnh đang là dữ liệu minh họa từng số, cần thay bằng mệnh đã xác nhận trước khi bán.
-              </p>
-              <dl>
-                <div>
-                  <dt>
-                    Giá SIM <small>(chưa bao gồm gói cước)</small>
-                  </dt>
-                  <dd>{money(entry.price)}</dd>
-                </div>
-                <div>
-                  <dt>Phí hòa mạng</dt>
-                  <dd>Đã bao gồm trong giá SIM</dd>
-                </div>
-              </dl>
-              <div className="plan-summary">
-                <strong>Gói cước chọn riêng</strong>
-                <p>{plan.id === "none" ? "Chưa chọn gói cước" : plan.name}</p>
-                <button type="button" className="secondary" onClick={() => choosePackageFor(entry.id)}>
-                  {plan.id === "none" ? "Xem và chọn gói cước" : "Đổi gói cước"}
-                </button>
-                {plan.id !== "none" && (
-                  <button
-                    type="button"
-                    className="reset"
-                    onClick={() =>
-                      setChosenPlans((prev) => {
-                        const next = { ...prev };
-                        delete next[entry.id];
-                        return next;
-                      })
-                    }
-                  >
-                    Bỏ gói
-                  </button>
-                )}
-              </div>
-              <dl>
-                <div>
-                  <dt>Tiền gói đã chọn</dt>
-                  <dd>{money(plan.price)}</dd>
-                </div>
-                <div>
-                  <dt>Tổng thanh toán ban đầu</dt>
-                  <dd style={{ color: "var(--red)" }}>{money(totalFor(entry))}</dd>
-                </div>
-              </dl>
-              <p className="note">
-                Tổng = giá SIM (đã gồm phí hòa mạng) + tiền gói đã chọn. Gói cước Viettel theo chính
-                sách được cung cấp; nhân viên xác nhận điều kiện áp dụng. Đây là bản mẫu, chưa thể
-                đăng ký hoặc giữ số.
-              </p>
-              <button type="button" className="primary" onClick={() => setModal({ kind: "order", id: entry.id })}>
-                Tiếp tục đặt mua
-              </button>
-            </>
-          );
-        })()}
+        {modal?.kind === "details" && (
+          <SimDetails
+            key={modal.sim.id}
+            sim={modal.sim}
+            plan={planFor(modal.sim)}
+            onChoosePackage={choosePackageFor}
+            onRemovePlan={(sim) =>
+              setChosenPlans((prev) => {
+                const next = { ...prev };
+                delete next[sim.id];
+                return next;
+              })
+            }
+            onOrder={(sim) => setModal({ kind: "order", sim })}
+          />
+        )}
 
         {modal?.kind === "compare" && (
           <>
             <h2>So sánh số đã chọn</h2>
             <div className="compare-grid">
-              {selected.map((id) => {
-                const entry = SIM_ENTRIES[id];
+              {selected.map((entry) => {
                 const plan = planFor(entry);
                 return (
-                  <div key={id}>
-                    <span className="tag">{entry.type}</span>
+                  <div key={entry.id}>
+                    <span className="tag">{cardTag(entry)}</span>
                     <p>
-                      Mệnh: <b>{entry.element}</b>
+                      Loại: <b>{entry.simTypes.map((simType) => simType.name).join(", ") || "—"}</b>
                     </p>
-                    <h3>{formatNumber(entry.number)}</h3>
+                    <h3>{formatNumber(entry.phoneNumber)}</h3>
                     <p>
                       Giá SIM (chưa gồm gói)
                       <br />
-                      <b>{money(entry.price)}</b>
+                      <b>{priceText(entry.price)}</b>
                     </p>
                     <p>
                       Phí hòa mạng
@@ -630,18 +660,18 @@ export function SimShop() {
                 );
               })}
             </div>
-            <p className="note">Giá và điều kiện trong bản mẫu chỉ để minh họa cách tư vấn.</p>
+            <p className="note">Gói cước và điều kiện áp dụng cần nhân viên xác nhận trước khi đăng ký.</p>
           </>
         )}
 
         {modal?.kind === "order" && (() => {
-          const entry = SIM_ENTRIES[modal.id];
+          const entry = modal.sim;
           return (
             <>
               <h2>Đặt mua SIM</h2>
-              <div className="number">{formatNumber(entry.number)}</div>
+              <div className="number">{formatNumber(entry.phoneNumber)}</div>
               <p>
-                Giá SIM: <b>{money(entry.price)}</b> · Gói: <b>{planFor(entry).id}</b>
+                Giá SIM: <b>{priceText(entry.price)}</b> · Gói: <b>{planFor(entry).id}</b>
               </p>
               <p className="note">
                 Tổng dự kiến: <b>{money(totalFor(entry))}</b>. Đơn thử chỉ lưu trên thiết bị này, chưa
@@ -725,5 +755,85 @@ export function SimShop() {
         )}
       </dialog>
     </div>
+  );
+}
+
+interface SimDetailsProps {
+  sim: WebSim;
+  plan: Plan;
+  onChoosePackage: (sim: WebSim) => void;
+  onRemovePlan: (sim: WebSim) => void;
+  onOrder: (sim: WebSim) => void;
+}
+
+// Number details. Status and price are re-checked with the server when
+// opened — the list may be minutes old and the number already sold.
+function SimDetails({ sim: listed, plan, onChoosePackage, onRemovePlan, onOrder }: SimDetailsProps) {
+  const status = useSimStatus(listed.id);
+  const sim = status.data ?? listed;
+  const soldOut = status.isError;
+  const priceChanged = status.data && status.data.price !== listed.price;
+  const element = elementOf(sim);
+  const total = (sim.price ?? 0) + plan.price;
+
+  return (
+    <>
+      <div className="eyebrow">
+        {sim.simTypes.map((type) => type.name).join(" · ") || "Sim số"}
+      </div>
+      <div className="number">{formatNumber(sim.phoneNumber)}</div>
+      {element && (
+        <div className="element">
+          {element.icon} Mệnh: <b>{element.label}</b>
+        </div>
+      )}
+      <p className="note">
+        {status.isPending && "Đang kiểm tra tình trạng số…"}
+        {soldOut && <b style={{ color: "var(--red)" }}>Số này vừa được bán hoặc không còn bán trên website.</b>}
+        {status.data && <>✓ Còn hàng tại {sim.store.name}.</>}
+        {priceChanged && " Giá đã được cập nhật."}
+      </p>
+      <dl>
+        <div>
+          <dt>
+            Giá SIM <small>(chưa bao gồm gói cước)</small>
+          </dt>
+          <dd>{priceText(sim.price)}</dd>
+        </div>
+        <div>
+          <dt>Phí hòa mạng</dt>
+          <dd>Đã bao gồm trong giá SIM</dd>
+        </div>
+      </dl>
+      <div className="plan-summary">
+        <strong>Gói cước chọn riêng</strong>
+        <p>{plan.id === "none" ? "Chưa chọn gói cước" : plan.name}</p>
+        <button type="button" className="secondary" onClick={() => onChoosePackage(sim)}>
+          {plan.id === "none" ? "Xem và chọn gói cước" : "Đổi gói cước"}
+        </button>
+        {plan.id !== "none" && (
+          <button type="button" className="reset" onClick={() => onRemovePlan(sim)}>
+            Bỏ gói
+          </button>
+        )}
+      </div>
+      <dl>
+        <div>
+          <dt>Tiền gói đã chọn</dt>
+          <dd>{money(plan.price)}</dd>
+        </div>
+        <div>
+          <dt>Tổng thanh toán ban đầu</dt>
+          <dd style={{ color: "var(--red)" }}>{money(total)}</dd>
+        </div>
+      </dl>
+      <p className="note">
+        Tổng = giá SIM (đã gồm phí hòa mạng) + tiền gói đã chọn. Gói cước Viettel theo chính sách được
+        cung cấp; nhân viên xác nhận điều kiện áp dụng. Chưa thể giữ số trực tuyến.
+      </p>
+      <button type="button" className="primary" disabled={!status.data} onClick={() => onOrder(sim)}>
+        {soldOut ? "Số không còn bán" : "Tiếp tục đặt mua"}
+      </button>
+    </>
   );
 }

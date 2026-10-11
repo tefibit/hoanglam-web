@@ -31,6 +31,7 @@ export interface DemoOrder {
 // (e.g. "SIM năm sinh" in the menu). `nonce` makes repeated clicks count.
 export type ShopCommand =
   | { kind: "reset"; nonce: number }
+  // value: a sim_types code, e.g. "NAM_SINH".
   | { kind: "type"; value: string; nonce: number }
   | { kind: "focusElement"; nonce: number }
   | { kind: "favorites"; nonce: number };
@@ -55,7 +56,8 @@ type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : n
 
 const ShopUiContext = createContext<ShopUi | null>(null);
 
-const FAVORITES_KEY = "sim-favorites";
+// v2: ids are real inventory item ids (v1 held demo-list indexes).
+const FAVORITES_KEY = "sim-favorites-v2";
 const ORDERS_KEY = "sim-orders";
 
 function readStorage<T>(key: string, fallback: T): T {
