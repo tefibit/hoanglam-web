@@ -226,3 +226,17 @@
 .sd .load-more{display:flex;justify-content:center;margin-top:20px}
 .sd .grid.is-stale{opacity:.6;transition:opacity .15s}
 .sd .detail:disabled,.sd button.primary:disabled{opacity:.5;cursor:not-allowed}
+.sd .birth-panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:22px}
+.sd .birth-panel h2{font-size:20px;margin:0 0 4px}
+.sd .birth-panel>p{color:var(--muted);margin:0 0 14px;font-size:14px}
+.sd .birth-panel form{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.sd .birth-field{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:bold;border:0;padding:0;margin:0;min-width:0}
+.sd .birth-field legend{padding:0;margin-bottom:6px}
+.sd .birth-field input[type=date]{font:inherit;font-weight:normal;padding:10px;border:1px solid var(--line);border-radius:8px;min-width:180px}
+.sd .gender-options{display:flex;gap:6px}
+.sd .gender-options label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-weight:normal;cursor:pointer}
+.sd .gender-options label.active{border-color:var(--red);color:var(--red);background:#fff0f3}
+.sd .gender-options input{accent-color:var(--red)}
+.sd .birth-result{margin:14px 0 0;font-size:15px;color:#465466}
+.sd .birth-result b{color:var(--ink)}
+@media (max-width:640px){.sd .birth-panel form{flex-direction:column;align-items:stretch}.sd .birth-field input[type=date]{width:100%}}

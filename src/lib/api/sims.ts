@@ -31,6 +31,8 @@ export interface SimFilters {
   search: string;
   // Digits the number must contain (birth year).
   contains: string;
+  // Digits the number must end with ("Sim năm sinh").
+  suffix?: string;
   prefix: string;
   minPrice?: number;
   maxPrice?: number;
@@ -50,6 +52,7 @@ function filterParams(filters: SimFilters) {
   return {
     type: filters.types.join(",") || undefined,
     contains: filters.contains || undefined,
+    suffix: filters.suffix || undefined,
     prefix: filters.prefix || undefined,
     min_price: filters.minPrice,
     max_price: filters.maxPrice,
@@ -118,5 +121,32 @@ export function useSimStatus(id: number) {
     queryFn: async () => (await apiClient.get<ApiResponse<WebSim>>(`/web/sims/${id}`)).data.data,
     staleTime: 0,
     retry: false,
+  });
+}
+
+export type Gender = "male" | "female";
+
+// /web/menh — mệnh (ngũ hành nạp âm) of a birth date, by its lunar year.
+export interface WebMenh {
+  birth_date: string;
+  gender: Gender;
+  lunar_date: { day: number; month: number; year: number };
+  can_chi: string;
+  // null when the lunar year is outside the shop's table (1950–2020).
+  element: "KIM" | "MOC" | "THUY" | "HOA" | "THO" | null;
+  sim_type: { id: number; code: string; name: string; slug: string } | null;
+}
+
+export function useMenh(birthDate: string | undefined, gender: Gender | undefined) {
+  return useQuery({
+    queryKey: ["web-menh", birthDate, gender],
+    queryFn: async () =>
+      (
+        await apiClient.get<ApiResponse<WebMenh>>("/web/menh", {
+          params: { birth_date: birthDate, gender },
+        })
+      ).data.data,
+    enabled: Boolean(birthDate && gender),
+    staleTime: Infinity,
   });
 }

@@ -16,8 +16,10 @@ import {
 } from "./data";
 import { useShopUi, type DemoOrder } from "./ShopUiContext";
 import { OrdersModal } from "./OrdersModal";
+import { BirthSearchPanel, type BirthInfo } from "./BirthSearchPanel";
 import {
   useFeaturedSims,
+  useMenh,
   useSimSearch,
   useSimStatus,
   useSimilarSims,
@@ -70,6 +72,8 @@ export function SimShop() {
   const [prefix, setPrefix] = useState("all");
   const [element, setElement] = useState<string>("all");
   const [year, setYear] = useState("");
+  // Ngày sinh + giới tính entered for "năm sinh" / "phong thủy".
+  const [birth, setBirth] = useState<BirthInfo | null>(null);
   const [sort, setSort] = useState<SimSort>("suggested");
   const [selected, setSelected] = useState<WebSim[]>([]);
   const [chosenPlans, setChosenPlans] = useState<Record<number, string>>({});
@@ -101,21 +105,41 @@ export function SimShop() {
     [simTypes],
   );
 
+  const birthMode = type === "NAM_SINH" || type === "PHONG_THUY" ? type : null;
+  const activeBirth = birthMode ? birth : null;
+  const menh = useMenh(
+    birthMode === "PHONG_THUY" ? activeBirth?.date : undefined,
+    birthMode === "PHONG_THUY" ? activeBirth?.gender : undefined,
+  );
+
   const filters = useMemo<SimFilters>(() => {
     const [minPrice, maxPrice] = budget === "all" ? [] : budget.split("-").map(Number);
+    const typeSlugs = [type, element]
+      .filter((code) => code !== "all")
+      .map((code) => slugOf(code))
+      .filter((slug): slug is string => Boolean(slug));
+    let types = typeSlugs;
+    let suffix = "";
+    if (activeBirth && type === "NAM_SINH") {
+      // Numbers ending with the birth year, tagged or not.
+      types = types.filter((slug) => slug !== slugOf("NAM_SINH"));
+      suffix = activeBirth.date.slice(0, 4);
+    }
+    if (activeBirth && type === "PHONG_THUY" && menh.data?.sim_type) {
+      // The visitor's mệnh replaces the generic "phong thủy" tag.
+      types = [...types.filter((slug) => slug !== slugOf("PHONG_THUY")), menh.data.sim_type.slug];
+    }
     return {
-      types: [type, element]
-        .filter((code) => code !== "all")
-        .map((code) => slugOf(code))
-        .filter((slug): slug is string => Boolean(slug)),
+      types: [...new Set(types)],
       search: debouncedPattern,
       contains: debouncedYear,
+      suffix,
       prefix: prefix === "all" ? "" : prefix,
       minPrice,
       maxPrice,
       ids: favoriteOnly ? favorites : undefined,
     };
-  }, [budget, type, element, slugOf, debouncedPattern, debouncedYear, prefix, favoriteOnly, favorites]);
+  }, [budget, type, element, slugOf, activeBirth, menh.data, debouncedPattern, debouncedYear, prefix, favoriteOnly, favorites]);
 
   // "Yêu thích" with nothing saved → nothing to ask the API for.
   const noFavorites = favoriteOnly && favorites.length === 0;
@@ -140,6 +164,7 @@ export function SimShop() {
   const resetFilters = useCallback(() => {
     setType("all");
     setElement("all");
+    setBirth(null);
     setFavoriteOnly(false);
     setYear("");
     setQuery("");
@@ -455,6 +480,17 @@ export function SimShop() {
               <p>Những số cửa hàng chọn riêng cho bạn.</p>
               <div className="grid">{featuredSims.map(card)}</div>
             </section>
+          )}
+          {birthMode && (
+            <BirthSearchPanel
+              key={birthMode}
+              mode={birthMode}
+              value={birth}
+              onChange={setBirth}
+              menh={menh.data}
+              menhLoading={menh.isFetching}
+              menhError={menh.isError ? "Không tính được mệnh, vui lòng thử lại." : undefined}
+            />
           )}
           <div className="results-head">
             <div>
