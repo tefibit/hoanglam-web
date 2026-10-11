@@ -7,6 +7,7 @@ import { siteConfig } from "@/lib/site";
 import { ShopUiProvider } from "@/components/sim/ShopUiContext";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 // Vietnamese-friendly font, self-hosted by next/font (no layout shift).
 const beVietnamPro = Be_Vietnam_Pro({
@@ -75,6 +76,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <SiteHeader />
             {children}
             <SiteFooter />
+            <ChatWidget />
           </ShopUiProvider>
         </Providers>
       </body>

@@ -192,6 +192,10 @@ export function SimShop() {
     /* eslint-disable react-hooks/set-state-in-effect -- applying an external command */
     if (command.kind === "reset") resetFilters();
     if (command.kind === "type") setType(command.value);
+    if (command.kind === "search") {
+      resetFilters();
+      setQuery(command.value);
+    }
     if (command.kind === "favorites") setFavoriteOnly(true);
     /* eslint-enable react-hooks/set-state-in-effect */
     if (command.kind === "focusElement") {

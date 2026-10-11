@@ -33,6 +33,8 @@ export type ShopCommand =
   | { kind: "reset"; nonce: number }
   // value: a sim_types code, e.g. "NAM_SINH".
   | { kind: "type"; value: string; nonce: number }
+  // value: digits / pattern for the search box, e.g. "098x68".
+  | { kind: "search"; value: string; nonce: number }
   | { kind: "focusElement"; nonce: number }
   | { kind: "favorites"; nonce: number };
 
