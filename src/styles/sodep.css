@@ -275,3 +275,16 @@
 .sd .chat-sims b{display:block;font-size:15px;font-variant-numeric:tabular-nums}
 .sd .chat-sims small{color:var(--muted);font-size:12px}
 .sd .chat-sims button{border:1px solid var(--red);background:#fff;color:var(--red);border-radius:7px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer;flex:none}
+/* Quick contact (Zalo / gọi điện) — bottom-left, above the footer bar. */
+.sd .contact-float{position:fixed;left:24px;bottom:100px;z-index:5;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.sd .contact-btn{display:flex;align-items:center;gap:8px;text-decoration:none;color:#fff;border-radius:999px;padding:6px 16px 6px 6px;font-weight:700;font-size:15px;box-shadow:0 8px 22px #0003;transition:transform .15s}
+.sd .contact-btn:hover{transform:translateY(-2px)}
+.sd .contact-btn.zalo{background:#0068ff}
+.sd .contact-btn.phone{background:#1fa34a}
+.sd .contact-icon{width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:none;position:relative}
+.sd .zalo .contact-icon{color:#0068ff;font-size:12px;font-weight:800;letter-spacing:-.3px}
+.sd .phone .contact-icon{color:#1fa34a}
+.sd .phone .contact-icon::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #fff;opacity:0;animation:contact-ring 1.6s infinite}
+@keyframes contact-ring{0%{transform:scale(.85);opacity:.9}100%{transform:scale(1.35);opacity:0}}
+@media (prefers-reduced-motion:reduce){.sd .phone .contact-icon::after{animation:none}}
+@media (max-width:640px){.sd .contact-float{left:16px;bottom:90px}.sd .contact-btn{padding:6px}.sd .contact-label{display:none}}
