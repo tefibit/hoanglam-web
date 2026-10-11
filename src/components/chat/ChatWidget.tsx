@@ -30,7 +30,9 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([{ id: 0, from: "bot", ...GREETING }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const [sessionId] = useState(newChatSessionId);
+  // Created on the first question (an event), not while rendering: Next
+  // prerenders this component and rejects crypto.randomUUID() there.
+  const sessionId = useRef<string | null>(null);
   const nextId = useRef(1);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,7 +66,8 @@ export function ChatWidget() {
     setInput("");
     setTyping(true);
     try {
-      const answer = await askAdvisor(history, sessionId);
+      sessionId.current ??= newChatSessionId();
+      const answer = await askAdvisor(history, sessionId.current);
       push({ from: "bot", text: answer.reply, sims: answer.sims });
     } catch (error) {
       const status = error instanceof ApiError ? error.status : 0;
