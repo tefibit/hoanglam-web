@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { formatPostDate, getPosts, postPath } from "@/lib/api/content";
+import { formatPostDate, getPosts, postPath, type PostType } from "@/lib/api/content";
 
 const PAGE_SIZE = 12;
 
 interface PostListProps {
-  topic?: string;
-  excludeTopic?: string;
+  type: PostType;
   // List page the pagination links point to, e.g. "/tin-tuc".
   basePath: string;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -14,10 +13,10 @@ interface PostListProps {
 
 // Paginated grid of posts (thumbnail, title, summary). Reads ?page=, so it
 // renders at request time inside the page's <Suspense>.
-export async function PostList({ topic, excludeTopic, basePath, searchParams, emptyText }: PostListProps) {
+export async function PostList({ type, basePath, searchParams, emptyText }: PostListProps) {
   const rawPage = (await searchParams).page;
   const page = Math.max(1, Number.parseInt(String(Array.isArray(rawPage) ? rawPage[0] : (rawPage ?? "1")), 10) || 1);
-  const { data: posts, pagination } = await getPosts({ topic, excludeTopic, page, limit: PAGE_SIZE });
+  const { data: posts, pagination } = await getPosts({ type, page, limit: PAGE_SIZE });
 
   if (posts.length === 0) {
     return (

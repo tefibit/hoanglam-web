@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { PLAN_TOPIC } from "@/lib/api/content";
 import { PageHeading } from "@/components/content/PageHeading";
 import { PostList } from "@/components/content/PostList";
 
@@ -21,7 +20,7 @@ export default function NewsPage(props: PageProps<"/tin-tuc">) {
       />
       <Suspense fallback={<div className="empty"><p>Đang tải tin tức…</p></div>}>
         <PostList
-          excludeTopic={PLAN_TOPIC}
+          type="NEWS"
           basePath="/tin-tuc"
           searchParams={props.searchParams}
           emptyText="Chưa có tin tức nào."

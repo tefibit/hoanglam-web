@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { formatPostDate, getPost, getPosts, postPath, PLAN_TOPIC } from "@/lib/api/content";
+import { notFound, permanentRedirect } from "next/navigation";
+import { formatPostDate, getPost, getPosts, postPath, type PostType } from "@/lib/api/content";
 import { siteConfig } from "@/lib/site";
 import { PageHeading } from "./PageHeading";
 
@@ -12,8 +12,9 @@ const SECTIONS: Record<PostSection, { label: string; href: string }> = {
   "goi-cuoc": { label: "Gói cước 5G", href: "/goi-cuoc" },
 };
 
-const sectionFilter = (section: PostSection) =>
-  section === "goi-cuoc" ? { topic: PLAN_TOPIC } : { excludeTopic: PLAN_TOPIC };
+const SECTION_TYPE: Record<PostSection, PostType> = { "tin-tuc": "NEWS", "goi-cuoc": "PLAN" };
+
+const sectionFilter = (section: PostSection) => ({ type: SECTION_TYPE[section] });
 
 // Slugs prerendered at build time (newest posts). Cache Components needs at
 // least one, so an empty list gets a placeholder that renders a 404.
@@ -46,6 +47,8 @@ export async function PostDetail({ params, section }: { params: Promise<{ slug: 
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) notFound();
+  // A post opened under the other section (e.g. its type was changed).
+  if (post.postType !== SECTION_TYPE[section]) permanentRedirect(postPath(post));
 
   const home = SECTIONS[section];
   const related = (await getPosts({ ...sectionFilter(section), limit: 4 })).data

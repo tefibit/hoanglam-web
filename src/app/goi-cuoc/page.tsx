@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { PLAN_TOPIC } from "@/lib/api/content";
 import { PageHeading } from "@/components/content/PageHeading";
 import { PostList } from "@/components/content/PostList";
 
@@ -21,7 +20,7 @@ export default function PlansPage(props: PageProps<"/goi-cuoc">) {
       />
       <Suspense fallback={<div className="empty"><p>Đang tải gói cước…</p></div>}>
         <PostList
-          topic={PLAN_TOPIC}
+          type="PLAN"
           basePath="/goi-cuoc"
           searchParams={props.searchParams}
           emptyText="Chưa có gói cước nào được đăng."

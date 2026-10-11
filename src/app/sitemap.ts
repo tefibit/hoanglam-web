@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { siteConfig } from "@/lib/site";
-import { PLAN_TOPIC, getPosts, postPath } from "@/lib/api/content";
+import { getPosts, postPath } from "@/lib/api/content";
 
 const PAGES: { path: string; changeFrequency: "daily" | "weekly"; priority: number }[] = [
   { path: "/", changeFrequency: "daily", priority: 1 },
@@ -14,8 +14,8 @@ const PAGES: { path: string; changeFrequency: "daily" | "weekly"; priority: numb
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [news, plans] = await Promise.all([
-    getPosts({ excludeTopic: PLAN_TOPIC, limit: 100 }),
-    getPosts({ topic: PLAN_TOPIC, limit: 100 }),
+    getPosts({ type: "NEWS", limit: 100 }),
+    getPosts({ type: "PLAN", limit: 100 }),
   ]);
 
   return [

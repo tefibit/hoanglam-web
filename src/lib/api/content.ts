@@ -7,8 +7,8 @@ import { cacheLife } from "next/cache";
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-// Posts with this topic are "Gói cước 5G"; every other post is "Tin tức".
-export const PLAN_TOPIC = "goi-cuoc";
+// "Loại bài viết": NEWS → /tin-tuc, PLAN (gói cước 5G) → /goi-cuoc.
+export type PostType = "NEWS" | "PLAN";
 
 export interface PostSummary {
   id: number;
@@ -16,6 +16,7 @@ export interface PostSummary {
   slug: string;
   summary: string | null;
   thumbnailUrl: string | null;
+  postType: PostType;
   topic: string | null;
   publishedAt: string | null;
 }
@@ -55,15 +56,14 @@ async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
-export async function getPosts(options: { topic?: string; excludeTopic?: string; page?: number; limit?: number }) {
+export async function getPosts(options: { type?: PostType; page?: number; limit?: number }) {
   "use cache";
   cacheLife("minutes");
 
   const page = options.page ?? 1;
   const limit = options.limit ?? 12;
   const query = new URLSearchParams({ page: String(page), limit: String(limit) });
-  if (options.topic) query.set("topic", options.topic);
-  if (options.excludeTopic) query.set("exclude_topic", options.excludeTopic);
+  if (options.type) query.set("type", options.type);
 
   const body = await getJson<PostPage>(`/web/posts?${query}`);
   return body ?? { data: [], pagination: { page, limit, total: 0, total_pages: 0 } };
@@ -86,8 +86,8 @@ export async function getStores() {
 }
 
 // Where a post lives on the site.
-export const postPath = (post: Pick<PostSummary, "slug" | "topic">) =>
-  `${post.topic === PLAN_TOPIC ? "/goi-cuoc" : "/tin-tuc"}/${post.slug}`;
+export const postPath = (post: Pick<PostSummary, "slug" | "postType">) =>
+  `${post.postType === "PLAN" ? "/goi-cuoc" : "/tin-tuc"}/${post.slug}`;
 
 export const formatPostDate = (value: string | null) =>
   value ? new Date(value).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : null;
