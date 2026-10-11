@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useShopUi } from "@/components/sim/ShopUiContext";
 import { formatNumber, priceText } from "@/components/sim/data";
 import { ApiError } from "@/lib/api/client";
-import { askAdvisor, type ChatTurn } from "@/lib/api/chat";
+import { askAdvisor, newChatSessionId, type ChatTurn } from "@/lib/api/chat";
 import type { WebSim } from "@/lib/api/sims";
 import { GREETING, replyTo, type BotAction, type BotReply } from "./bot";
 
@@ -30,6 +30,7 @@ export function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([{ id: 0, from: "bot", ...GREETING }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [sessionId] = useState(newChatSessionId);
   const nextId = useRef(1);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +64,7 @@ export function ChatWidget() {
     setInput("");
     setTyping(true);
     try {
-      const answer = await askAdvisor(history);
+      const answer = await askAdvisor(history, sessionId);
       push({ from: "bot", text: answer.reply, sims: answer.sims });
     } catch (error) {
       const status = error instanceof ApiError ? error.status : 0;
